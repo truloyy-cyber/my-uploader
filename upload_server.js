@@ -1,5 +1,4 @@
 const express = require('express');
-const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer');
 const axios = require('axios');
 const fs = require('fs');
@@ -168,5 +167,6 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`سرور با موفقیت بر روی پورت ${PORT} اجرا شد.`);
 });
+
 
 
