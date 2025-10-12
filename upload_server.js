@@ -44,11 +44,11 @@ async function postToInstagram({ videoUrl, caption, cookies: cookiesFromRequest 
     console.log('دانلود ویدیو با موفقیت انجام شد.');
 
     browser = await puppeteer.launch({
-      headless: true,
-      defaultViewport: { width: 1366, height: 768 },
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+  args: chromium.args,
+  defaultViewport: chromium.defaultViewport,
+  executablePath: await chromium.executablePath,
+  headless: chromium.headless,
+});
 
     const page = await browser.newPage();
 
@@ -168,4 +168,5 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`سرور با موفقیت بر روی پورت ${PORT} اجرا شد.`);
 });
+
 
