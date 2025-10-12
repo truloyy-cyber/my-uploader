@@ -25,4 +25,5 @@ COPY . .
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # دستور نهایی برای اجرای برنامه
+
 CMD ["npm", "start"]
