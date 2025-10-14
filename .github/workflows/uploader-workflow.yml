@@ -1,13 +1,12 @@
-name: Debug Uploader Service
+name: Instagram Uploader Service
 
-# ** FIX: اضافه کردن تریگر دستی **
 on:
   workflow_dispatch:
 
 jobs:
-  debug-server:
+  run-service:
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
@@ -19,9 +18,33 @@ jobs:
 
       - name: Install Dependencies
         run: npm install
-        
-      - name: Run Node.js Server Directly
+
+      - name: Start Server, Run Ngrok, and Keep Alive
         shell: pwsh
         run: |
-          Write-Host "Running the Node.js server directly to see logs and errors..."
-          node upload_server.js
+          # ۱. ابتدا سرور Node.js را در پس‌زمینه اجرا می‌کنیم
+          Write-Host "Starting Node.js server in the background..."
+          Start-Process -FilePath "node" -ArgumentList "upload_server.js" -NoNewWindow
+          
+          # ۲. ۱۵ ثانیه صبر می‌کنیم تا سرور به طور کامل آماده شود
+          Write-Host "Waiting 15 seconds for server to initialize..."
+          Start-Sleep -Seconds 15
+          
+          # ۳. حالا Ngrok را دانلود و اجرا می‌کنیم
+          Write-Host "Downloading, configuring, and starting Ngrok..."
+          Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+          Expand-Archive -Path "ngrok.zip" -DestinationPath .
+          ./ngrok.exe config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+          Start-Process -FilePath "./ngrok.exe" -ArgumentList "http 3000" -NoNewWindow
+          
+          # ۴. ۱۰ ثانیه دیگر صبر می‌کنیم تا Ngrok به طور کامل متصل شود
+          Start-Sleep -Seconds 10 
+          
+          # ۵. آدرس عمومی را دریافت کرده و در لاگ‌ها چاپ می‌کنیم
+          Write-Host "Fetching public URL..."
+          $ngrokUrl = (Invoke-RestMethod -Uri "http://127.0.0.1:4040/api/tunnels").tunnels[0].public_url
+          Write-Host ">>>>>>>>>> Your public URL is: $ngrokUrl <<<<<<<<<<"
+          
+          # ۶. این دستور حیاتی، کل مرحله و در نتیجه تمام فرآیندهای پس‌زمینه را زنده نگه می‌دارد
+          Write-Host "Service is running. Keeping the runner alive for approximately 6 hours."
+          Start-Sleep -Seconds 21000
