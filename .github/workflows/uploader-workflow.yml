@@ -1,0 +1,55 @@
+name: Instagram Uploader Service
+
+# این بخش به ما اجازه می‌دهد که ورک‌فلو را به صورت دستی از داخل صفحه Actions اجرا کنیم
+on:
+  workflow_dispatch:
+
+jobs:
+  run-service:
+    # ما از یک ماشین مجازی ویندوز سرور استفاده می‌کنیم چون اسکریپت ما برای آن بهینه است
+    runs-on: windows-latest
+
+    steps:
+      # قدم ۱: کد ریپازیتوری را در ماشین مجازی دانلود می‌کند
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # قدم ۲: Node.js نسخه ۱۸ را روی ماشین نصب و آماده می‌کند
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      # قدم ۳: نیازمندی‌های پروژه (express, puppeteer, axios) را نصب می‌کند
+      - name: Install Dependencies
+        run: npm install
+
+      # قدم ۴: Ngrok را راه‌اندازی و سرور را در پس‌زمینه اجرا می‌کند
+      - name: Run Ngrok and Start Server in Background
+        shell: pwsh
+        run: |
+          # دانلود و استخراج Ngrok
+          Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+          Expand-Archive -Path "ngrok.zip"
+          
+          # تنظیم توکن Ngrok با استفاده از سکرتی که در فاز ۲ ساختیم
+          ./ngrok.exe config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+          
+          # اجرای Ngrok در یک فرآیند جداگانه در پس‌زمینه برای ساختن تونل به پورت 3000
+          Start-Process -FilePath "./ngrok.exe" -ArgumentList "http 3000" -NoNewWindow
+          
+          # ۱۰ ثانیه صبر می‌کنیم تا Ngrok زمان کافی برای اتصال داشته باشد
+          Start-Sleep -Seconds 10 
+          
+          # آدرس عمومی ساخته شده توسط Ngrok را دریافت کرده و در لاگ‌ها چاپ می‌کنیم تا بتوانیم آن را ببینیم
+          $ngrokUrl = (Invoke-RestMethod -Uri "http://127.0.0.1:4040/api/tunnels").tunnels[0].public_url
+          Write-Host ">>>>>>>>>> Your public URL is: $ngrokUrl <<<<<<<<<<"
+          
+          # اجرای سرور Node.js ما در یک فرآیند جداگانه در پس‌زمینه
+          Start-Process -FilePath "node" -ArgumentList "upload_server.js" -NoNewWindow
+          
+      # قدم ۵: ماشین مجازی را به زور روشن نگه می‌دارد
+      - name: Keep Runner Alive
+        run: |
+          # این دستور به سادگی برای حدود ۶ ساعت صبر می‌کند تا گیت‌هاب ماشین را خاموش نکند
+          Start-Sleep -Seconds 21000
