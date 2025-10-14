@@ -19,30 +19,34 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Run Ngrok and Start Server in Background
+      - name: Start Server and then Run Ngrok
         shell: pwsh
         run: |
-          # دانلود Ngrok
+          # ** FIX: ابتدا سرور Node.js را در پس‌زمینه اجرا می‌کنیم
+          Write-Host "Starting Node.js server in the background..."
+          Start-Process -FilePath "node" -ArgumentList "upload_server.js" -NoNewWindow
+          
+          # ** FIX: ۱۵ ثانیه صبر می‌کنیم تا سرور به طور کامل آماده شود
+          Write-Host "Waiting for server to initialize..."
+          Start-Sleep -Seconds 15
+          
+          # حالا Ngrok را دانلود و اجرا می‌کنیم
+          Write-Host "Downloading and configuring Ngrok..."
           Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
-          
-          # ** FIX: استخراج در پوشه فعلی (.) **
           Expand-Archive -Path "ngrok.zip" -DestinationPath .
-          
-          # تنظیم توکن Ngrok
           ./ngrok.exe config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
           
-          # اجرای Ngrok در پس‌زمینه
+          # اجرای Ngrok در پس‌زمینه برای اتصال به پورت 3000 که اکنون آماده است
+          Write-Host "Starting Ngrok tunnel..."
           Start-Process -FilePath "./ngrok.exe" -ArgumentList "http 3000" -NoNewWindow
           
           Start-Sleep -Seconds 10 
           
-          # دریافت و چاپ URL عمومی
+          Write-Host "Fetching public URL..."
           $ngrokUrl = (Invoke-RestMethod -Uri "http://127.0.0.1:4040/api/tunnels").tunnels[0].public_url
           Write-Host ">>>>>>>>>> Your public URL is: $ngrokUrl <<<<<<<<<<"
           
-          # اجرای سرور Node.js در پس‌زمینه
-          Start-Process -FilePath "node" -ArgumentList "upload_server.js" -NoNewWindow
-          
       - name: Keep Runner Alive
         run: |
+          Write-Host "Service is running. Keeping the runner alive for approximately 6 hours."
           Start-Sleep -Seconds 21000
