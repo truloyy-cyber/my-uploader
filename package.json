@@ -1,7 +1,7 @@
 {
-  "name": "koyeb-instagram-uploader",
+  "name": "github-actions-uploader",
   "version": "1.0.0",
-  "description": "Instagram uploader service for Koyeb",
+  "description": "Instagram uploader running on GitHub Actions",
   "main": "upload_server.js",
   "scripts": {
     "start": "node upload_server.js"
