@@ -1,4 +1,26 @@
-- name: Debug Node.js Server
+name: Debug Uploader Service
+
+# ** FIX: اضافه کردن تریگر دستی **
+on:
+  workflow_dispatch:
+
+jobs:
+  debug-server:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Dependencies
+        run: npm install
+        
+      - name: Run Node.js Server Directly
         shell: pwsh
         run: |
           Write-Host "Running the Node.js server directly to see logs and errors..."
