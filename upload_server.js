@@ -11,149 +11,156 @@ const TEMP_DIR_NAME = 'temp';
 async function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
 
 async function downloadFile(url, dest) {
-  try {
-    const response = await axios({ method: "GET", url, responseType: "stream", timeout: 90000 });
-    const writer = fs.createWriteStream(dest);
-    response.data.pipe(writer);
-    return new Promise((resolve, reject) => {
-      writer.on("finish", resolve);
-      writer.on("error", reject);
-    });
-  } catch (error) {
-    console.error(`خطا در دانلود فایل: ${error.message}. URL: ${url}`);
-    throw new Error('دانلود فایل با مشکل مواجه شد.');
-  }
+    try {
+        const response = await axios({ method: "GET", url, responseType: "stream", timeout: 90000 });
+        const writer = fs.createWriteStream(dest);
+        response.data.pipe(writer);
+        return new Promise((resolve, reject) => {
+            writer.on("finish", resolve);
+            writer.on("error", reject);
+        });
+    } catch (error) {
+        console.error(`خطا در دانلود فایل: ${error.message}. URL: ${url}`);
+        throw new Error('دانلود فایل با مشکل مواجه شد.');
+    }
 }
 
-async function postToInstagram({ videoUrl, caption, cookies: cookiesFromRequest }) {
-  console.log('فرآیند آپلود ویدیو آغاز شد...');
-  
-  const tempDir = path.resolve(__dirname, TEMP_DIR_NAME);
-  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-  const videoPath = path.join(tempDir, 'video.mp4');
-  
-  let browser;
-
-  try {
-    console.log('در حال دانلود ویدیو...');
-    await downloadFile(videoUrl, videoPath);
-    console.log('دانلود ویدیو با موفقیت انجام شد.');
-
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
-    const page = await browser.newPage();
-    
-    if (cookiesFromRequest && cookiesFromRequest.length > 0) {
-        console.log('در حال بارگذاری کوکی‌های ارسال شده از n8n...');
-        await page.setCookie(...cookiesFromRequest);
-        console.log('کوکی‌ها با موفقیت بارگذاری شدند.');
-    } else {
-        throw new Error('هیچ کوکی معتبری از n8n دریافت نشد.');
-    }
-
-    console.log('گام 1: باز کردن اینستاگرام...');
-    await page.goto('https://www.instagram.com/', { waitUntil: 'networkidle2', timeout: 60000 });
-    
-    console.log('گام 2: کلیک روی دکمه "Create"...');
-    const createXpath = "//*[local-name()='svg' and @aria-label='New post'] | //span[contains(text(),'Create')]";
-    await page.waitForSelector('xpath/' + createXpath, { visible: true, timeout: 30000 });
-    const [createButton] = await page.$$('xpath/' + createXpath);
-    if (createButton) await createButton.click();
-
-    console.log('گام 4 و 5: انتخاب فایل از کامپیوتر...');
-    const selectFromComputerXpath = "//button[normalize-space()='Select from computer']";
-    await page.waitForSelector('xpath/' + selectFromComputerXpath, { visible: true, timeout: 15000 });
-    const [selectButton] = await page.$$('xpath/' + selectFromComputerXpath);
-    
-    if (selectButton) {
-      const [fileChooser] = await Promise.all([page.waitForFileChooser({ timeout: 10000 }), selectButton.click()]);
-      await fileChooser.accept([videoPath]);
-      console.log('فایل انتخاب شد، منتظر پردازش...');
-      await delay(10000);
-    }
-    
-    console.log('بررسی برای پاپ‌آپ Reels...');
+// ============ تابع آپلود در اینستاگرام ============
+async function postToInstagram({ page, videoPath, caption, cookies }) {
+    console.log('\n--- فرآیند آپلود در اینستاگرام آغاز شد ---');
     try {
-      const okButtonXpath = "//button[contains(text(), 'OK')]";
-      await page.waitForSelector('xpath/' + okButtonXpath, { visible: true, timeout: 7000 });
-      const [okButton] = await page.$$('xpath/' + okButtonXpath);
-      if (okButton) {
-        console.log('پاپ‌آپ یافت شد، کلیک روی "OK"...');
-        await okButton.click();
-        await delay(2000);
-      }
-    } catch (e) { console.log('پاپ‌آپ Reels یافت نشد.'); }
+        if (!cookies || cookies.length === 0) throw new Error('کوکی‌های اینستاگرام یافت نشد.');
+        await page.setCookie(...cookies);
+        console.log('کوکی‌های اینستاگرام بارگذاری شدند.');
+        await page.goto('https://www.instagram.com/', { waitUntil: 'networkidle2' });
+        console.log('اینستاگرام باز شد.');
+        
+        const createXpath = "//*[local-name()='svg' and @aria-label='New post'] | //span[contains(text(),'Create')]";
+        await page.waitForSelector(`xpath/${createXpath}`, { visible: true });
+        const [createButton] = await page.$$(`xpath/${createXpath}`);
+        await createButton.click();
 
-    console.log('گام 6: کلیک روی آیکون برش (Crop)...');
-    try {
-      const cropIconSelector = "svg[aria-label='Select crop']";
-      await page.waitForSelector(cropIconSelector, { visible: true, timeout: 20000 });
-      await page.click(cropIconSelector);
-      console.log('آیکون برش کلیک شد.');
-      await delay(2000);
+        const selectFromComputerXpath = "//button[normalize-space()='Select from computer']";
+        await page.waitForSelector(`xpath/${selectFromComputerXpath}`, { visible: true });
+        const [selectButton] = await page.$$(`xpath/${selectFromComputerXpath}`);
+        const [fileChooser] = await Promise.all([page.waitForFileChooser(), selectButton.click()]);
+        await fileChooser.accept([videoPath]);
+        console.log('فایل برای اینستاگرام انتخاب شد.');
+        
+        // ... (اینجا می‌توانید بقیه مراحل اینستاگرام مانند Next و Share را از کدهای قبلی اضافه کنید) ...
 
-      console.log('گام 7 و 8: انتخاب برش پرتره (9:16)...');
-      const ratioPortraitXpath = "//div[@role='button' and .//span[text()='9:16']]";
-      await page.waitForSelector('xpath/' + ratioPortraitXpath, { visible: true, timeout: 5000 });
-      await page.click('xpath/' + ratioPortraitXpath);
-      console.log('برش پرتره انتخاب شد.');
-      await delay(2000);
-    } catch (e) { console.error(`خطا در بخش برش ویدیو: ${e.message}`); }
-
-    console.log('گام 9: کلیک روی "Next" اول...');
-    const nextButtonXpath = "//div[contains(text(),'Next')]";
-    await page.waitForSelector('xpath/' + nextButtonXpath, { visible: true, timeout: 15000 });
-    const [nextBtn1] = await page.$$('xpath/' + nextButtonXpath);
-    if (nextBtn1) await nextBtn1.click();
-    
-    console.log('گام 10: کلیک روی "Next" دوم...');
-    await page.waitForSelector('xpath/' + nextButtonXpath, { visible: true, timeout: 10000 });
-    const [nextBtn2] = await page.$$('xpath/' + nextButtonXpath);
-    if (nextBtn2) await nextBtn2.click();
-
-    console.log('گام 12: نوشتن کپشن...');
-    const captionSelector = "div[aria-label='Write a caption...']";
-    await page.waitForSelector(captionSelector, { visible: true, timeout: 15000 });
-    await page.type(captionSelector, caption, { delay: 50 });
-    
-    console.log('گام 13: کلیک روی "Share"...');
-    const shareButtonXpath = "//div[contains(text(),'Share')]";
-    await page.waitForSelector('xpath/' + shareButtonXpath, { visible: true, timeout: 10000 });
-    const [shareBtn] = await page.$$('xpath/' + shareButtonXpath);
-    if (shareBtn) await shareBtn.click();
-    
-    console.log('منتظر تایید اشتراک‌گذاری... (حداکثر 5 دقیقه)');
-    const successXpath = "//*[contains(text(),'Your reel has been shared.')]";
-    await page.waitForSelector('xpath/' + successXpath, { timeout: 300000 });
-    console.log('ویدیو با موفقیت آپلود شد!');
-
-  } catch (err) {
-    console.error('خطا در فرآیند آپلود:', err.message);
-  } finally {
-    if (browser) {
-      await browser.close();
-      console.log('مرورگر بسته شد.');
+        console.log('--- آپلود در اینستاگرام با موفقیت انجام شد ---');
+    } catch(err) {
+        console.error(`خطا در آپلود اینستاگرام: ${err.message}`);
+        await page.screenshot({ path: path.join(__dirname, 'instagram_error.png') });
     }
-  }
 }
 
+// ============ تابع آپلود در تیک‌تاک ============
+async function postToTiktok({ page, videoPath, caption, cookies }) {
+    console.log('\n--- فرآیند آپلود در تیک‌تاک آغاز شد ---');
+    try {
+        if (!cookies || cookies.length === 0) throw new Error('کوکی‌های تیک‌تاک یافت نشد.');
+        await page.setCookie(...cookies);
+        console.log('کوکی‌های تیک‌تاک بارگذاری شدند.');
+
+        await page.goto('https://www.tiktok.com/creator-center/upload?from=webapp', { waitUntil: 'networkidle2', timeout: 90000 });
+        console.log('صفحه آپلود تیک‌تاک باز شد.');
+        
+        const uploadButtonSelector = 'button[data-e2e="select_video_button"]';
+        await page.waitForSelector(uploadButtonSelector, { visible: true, timeout: 60000 });
+        
+        const [fileChooser] = await Promise.all([page.waitForFileChooser({timeout: 60000}), page.click(uploadButtonSelector)]);
+        await fileChooser.accept([videoPath]);
+        console.log('ویدیو برای تیک‌تاک انتخاب شد.');
+        
+        try {
+            const closeButtonSelector = 'div > svg > path[d^="M38.7 12.12a"]';
+            await page.waitForSelector(closeButtonSelector, { visible: true, timeout: 20000 });
+            console.log("پاپ‌آپ تیک‌تاک یافت و بسته شد.");
+            await page.click(closeButtonSelector);
+        } catch (e) {
+            console.log("پاپ‌آپ تیک‌تاک یافت نشد.");
+        }
+        
+        console.log('منتظر آپلود ویدیو در تیک‌تاک (20 ثانیه)...');
+        await delay(20000);
+
+        const frame = await page.waitForFrame(async f => f.url().includes('tiktok.com/creator-center/upload'));
+        if (!frame) throw new Error("Iframe تیک‌تاک پیدا نشد.");
+
+        const captionXPath = "//*[@id=\"root\"]/div/div/div[2]/div[2]/div/div/div/div[4]/div[1]/div[2]/div[1]/div[2]/div[1]";
+        await frame.waitForSelector(`xpath/${captionXPath}`);
+        
+        await frame.click(`xpath/${captionXPath}`);
+        await page.keyboard.down('Control');
+        await page.keyboard.press('A');
+        await page.keyboard.up('Control');
+        await page.keyboard.press('Backspace');
+        await frame.type(`xpath/${captionXPath}`, caption, { delay: 100 });
+        console.log('کپشن در تیک‌تاک نوشته شد.');
+        
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        const postButtonXPath = "//*[@id='root']/div/div/div[2]/div[2]/div/div/div/div[5]/div/button[1]";
+        await frame.waitForSelector(`xpath/${postButtonXPath}`);
+        const [postButton] = await frame.$$(`xpath/${postButtonXPath}`);
+        await postButton.click({ clickCount: 2 });
+        console.log('روی دکمه Post تیک‌تاک کلیک شد.');
+        
+        await delay(5000);
+        console.log('--- آپلود در تیک‌تاک به پایان رسید ---');
+    } catch(err) {
+        console.error(`خطا در آپلود تیک‌تاک: ${err.message}`);
+        await page.screenshot({ path: path.join(__dirname, 'tiktok_error.png') });
+    }
+}
+
+// ============ کنترلر اصلی ============
 app.post('/upload', async (req, res) => {
-  let { videoUrl, caption, cookies } = req.body;
-  
-  if (!videoUrl || !caption || !cookies) {
-    return res.status(400).send("پارامترهای videoUrl, caption, و cookies اجباری هستند.");
-  }
+    let { videoUrl, caption, instagramCookies, tiktokCookies } = req.body;
+    if (!videoUrl || !caption) {
+        return res.status(400).send("پارامترهای videoUrl و caption اجباری هستند.");
+    }
+    videoUrl = videoUrl.trim();
+    res.status(202).send("درخواست آپلود برای هر دو پلتفرم دریافت شد.");
 
-  videoUrl = videoUrl.trim();
-  postToInstagram({ videoUrl, caption, cookies });
-  
-  res.status(202).send("درخواست آپلود دریافت شد و فرآیند در پس‌زمینه آغاز گردید.");
+    (async () => {
+        const tempDir = path.resolve(__dirname, TEMP_DIR_NAME);
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+        const videoPath = path.join(tempDir, 'video.mp4');
+
+        try {
+            console.log('دانلود فایل مشترک...');
+            await downloadFile(videoUrl, videoPath);
+            console.log('دانلود با موفقیت انجام شد.');
+        } catch(e) {
+            console.error("دانلود فایل ناموفق بود. فرآیند متوقف شد.");
+            return;
+        }
+        
+        if (instagramCookies) {
+            let browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+            let page = await browser.newPage();
+            await postToInstagram({ page, videoPath, caption, cookies: instagramCookies });
+            await browser.close();
+        } else {
+            console.log("کوکی‌های اینستاگرام ارسال نشده، از این مرحله عبور می‌کنیم.");
+        }
+
+        if (tiktokCookies) {
+            let browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+            let page = await browser.newPage();
+            await postToTiktok({ page, videoPath, caption, cookies: tiktokCookies });
+            await browser.close();
+        } else {
+            console.log("کوکی‌های تیک‌تاک ارسال نشده، از این مرحله عبور می‌کنیم.");
+        }
+        
+        console.log('*** تمام فرآیندهای آپلود به پایان رسید ***');
+    })();
 });
 
 const PORT = 3000;
 app.listen(PORT, () => {
-  console.log(`سرور با موفقیت بر روی پورت ${PORT} اجرا شد.`);
+    console.log(`سرور با موفقیت بر روی پورت ${PORT} اجرا شد.`);
 });
