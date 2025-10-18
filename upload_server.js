@@ -11,17 +11,28 @@ const TEMP_DIR_NAME = 'temp';
 async function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
 
 async function downloadFile(url, dest) {
-    try {
-        const response = await axios({ method: "GET", url, responseType: "stream", timeout: 90000 });
-        const writer = fs.createWriteStream(dest);
-        return new Promise((resolve, reject) => {
-            writer.on("finish", resolve);
-            writer.on("error", reject);
+    console.log(`شروع دانلود از: ${url}`);
+    const writer = fs.createWriteStream(dest);
+
+    const response = await axios({
+        url,
+        method: 'GET',
+        responseType: 'stream',
+        timeout: 180000 // افزایش تایم‌اوت دانلود به ۳ دقیقه
+    });
+
+    response.data.pipe(writer);
+
+    return new Promise((resolve, reject) => {
+        writer.on('finish', () => {
+            console.log("دانلود فایل به صورت کامل در دیسک ذخیره شد.");
+            resolve();
         });
-    } catch (error) {
-        console.error(`خطا در دانلود فایل: ${error.message}. URL: ${url}`);
-        throw new Error('دانلود فایل با مشکل مواجه شد.');
-    }
+        writer.on('error', (err) => {
+            console.error("خطا در زمان نوشتن فایل روی دیسک.");
+            reject(err);
+        });
+    });
 }
 
 // ============ تابع کامل و موفق آپلود در اینستاگرام ============
@@ -199,3 +210,4 @@ const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`سرور با موفقیت بر روی پورت ${PORT} اجرا شد.`);
 });
+
