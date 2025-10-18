@@ -133,11 +133,12 @@ async function postToTiktok({ page, videoPath, caption, cookies }) {
             console.log("پاپ‌آپ تیک‌تاک بسته شد.");
         } catch (e) { console.log("پاپ‌آپ تیک‌تاک یافت نشد."); }
         
-        console.log('منتظر آپلود ویدیو در تیک‌تاک (40 ثانیه)...');
-        await delay(40000);
-
-        const frame = await page.waitForFrame(async f => f.url().includes('tiktok.com/creator-center/upload'));
-        if (!frame) throw new Error("Iframe تیک‌تاک پیدا نشد.");
+        // ** FIX: یک انتظار هوشمند به جای دو انتظار جداگانه **
+console.log('منتظر آماده شدن صفحه ویرایش تیک‌تاک (حداکثر 5 دقیقه)...');
+const frame = await page.waitForFrame(async f => f.url().includes('tiktok.com/creator-center/upload'), {
+    timeout: 300000 // ۵ دقیقه زمان برای لود کامل iframe پس از آپلود
+});
+if (!frame) throw new Error("Iframe صفحه ویرایش تیک‌تاک پیدا نشد.");
 
         const captionXPath = "//*[@id=\"root\"]/div/div/div[2]/div[2]/div/div/div/div[4]/div[1]/div[2]/div[1]/div[2]/div[1]";
         await frame.waitForSelector(`xpath/${captionXPath}`);
