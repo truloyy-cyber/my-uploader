@@ -12,6 +12,7 @@ async function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
 
 async function downloadFile(url, dest) {
     try {
+        console.log(`شروع دانلود از: ${url}`);
         const response = await axios({ method: "GET", url, responseType: "stream", timeout: 180000 });
         const writer = fs.createWriteStream(dest);
         response.data.pipe(writer);
@@ -32,7 +33,7 @@ async function downloadFile(url, dest) {
 async function postToInstagram({ page, videoPath, caption, cookies }) {
     console.log('\n--- فرآیند آپلود در اینستاگرام آغاز شد ---');
     try {
-        if (!cookies || !Array.isArray(cookies) || cookies.length === 0) throw new Error('کوکی‌های اینستاگرام یافت نشد یا معتبر نیستند.');
+        if (!cookies || !Array.isArray(cookies) || cookies.length === 0) throw new Error('کوکی‌های اینستاگرام یافت نشد.');
         await page.setCookie(...cookies);
         console.log('کوکی‌های اینستاگرام بارگذاری شدند.');
 
@@ -63,7 +64,7 @@ async function postToInstagram({ page, videoPath, caption, cookies }) {
             console.log("پاپ‌آپ Reels یافت نشد.");
         }
         
-        // ** FIX 1: بازگرداندن منطق صحیح برش (Crop) **
+        // ** FIX: بازگرداندن منطق صحیح برش (Crop) **
         console.log('گام 6: کلیک روی آیکون برش (Crop)...');
         try {
             const cropIconSelector = "svg[aria-label='Select crop']";
@@ -132,7 +133,6 @@ async function postToTiktok({ page, videoPath, caption, cookies }) {
             console.log("پاپ‌آپ تیک‌تاک بسته شد.");
         } catch (e) { console.log("پاپ‌آپ تیک‌تاک یافت نشد."); }
         
-        // ** FIX 2: افزایش زمان انتظار به ۴۰ ثانیه **
         console.log('منتظر آپلود ویدیو در تیک‌تاک (40 ثانیه)...');
         await delay(40000);
 
@@ -216,4 +216,4 @@ app.post('/upload', (req, res) => {
 const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`سرور با موفقیت بر روی پورت ${PORT} اجرا شد.`);
-});```
+});
