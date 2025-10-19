@@ -64,7 +64,6 @@ async function postToInstagram({ page, videoPath, caption, cookies }) {
             console.log("پاپ‌آپ Reels یافت نشد.");
         }
         
-        // ** FIX: بازگرداندن منطق صحیح برش (Crop) **
         console.log('گام 6: کلیک روی آیکون برش (Crop)...');
         try {
             const cropIconSelector = "svg[aria-label='Select crop']";
@@ -109,7 +108,7 @@ async function postToInstagram({ page, videoPath, caption, cookies }) {
     }
 }
 
-// ============ تابع کامل و موفق آپلود در تیک‌تاک ============
+// ============ تابع اصلاح‌شده آپلود در تیک‌تاک ============
 async function postToTiktok({ page, videoPath, caption, cookies }) {
     console.log('\n--- فرآیند آپلود در تیک‌تاک آغاز شد ---');
     try {
@@ -133,32 +132,43 @@ async function postToTiktok({ page, videoPath, caption, cookies }) {
             console.log("پاپ‌آپ تیک‌تاک بسته شد.");
         } catch (e) { console.log("پاپ‌آپ تیک‌تاک یافت نشد."); }
         
-        // ** FIX: یک انتظار هوشمند به جای دو انتظار جداگانه **
-console.log('منتظر آماده شدن صفحه ویرایش تیک‌تاک (حداکثر 5 دقیقه)...');
-const frame = await page.waitForFrame(async f => f.url().includes('tiktok.com/creator-center/upload'), {
-    timeout: 70000 // ۵ دقیقه زمان برای لود کامل iframe پس از آپلود
-});
-if (!frame) throw new Error("Iframe صفحه ویرایش تیک‌تاک پیدا نشد.");
+        console.log('منتظر آپلود ویدیو (70 ثانیه)...');
+        await delay(70000);
 
         const captionXPath = "//*[@id=\"root\"]/div/div/div[2]/div[2]/div/div/div/div[4]/div[1]/div[2]/div[1]/div[2]/div[1]";
-        await frame.waitForSelector(`xpath/${captionXPath}`);
+        const [captionBox] = await page.$$(`xpath/${captionXPath}`);
+        if (!captionBox) throw new Error("کادر کپشن پیدا نشد.");
         
-        await frame.click(`xpath/${captionXPath}`);
-        await page.keyboard.down('Control'); await page.keyboard.press('A'); await page.keyboard.up('Control');
+        await captionBox.click();
+        await page.keyboard.down('Control');
+        await page.keyboard.press('A');
+        await page.keyboard.up('Control');
         await page.keyboard.press('Backspace');
-        
-        await page.evaluate((text, selector) => {
-            const input = document.evaluate(selector, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-            if(input) input.innerText = text;
-        }, caption, `xpath/${captionXPath}`);
-        console.log('کپشن با موفقیت پیست شد.');
+        await delay(500);
+
+        await page.keyboard.type(caption, { delay: 100 });
+        console.log('کپشن با موفقیت تایپ شد.');
         
         await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        const postButtonXPath = "//*[@id='root']/div/div/div[2]/div[2]/div/div/div/div[5]/div/button[1]";
-        const [postButton] = await frame.$$(`xpath/${postButtonXPath}`);
-        await postButton.click({ clickCount: 2 });
-        console.log('روی دکمه Post تیک‌تاک کلیک شد.');
+        console.log('به انتهای صفحه اسکرول شد.');
+        await delay(1000);
         
+        const postButtonXPath = "//*[@id='root']/div/div/div[2]/div[2]/div/div/div/div[5]/div/button[1]";
+        await page.waitForSelector(`xpath/${postButtonXPath}`, { visible: true });
+
+        console.log("تلاش برای کلیک روی دکمه Post...");
+        try {
+            const [postButton] = await page.$$(`xpath/${postButtonXPath}`);
+            await postButton.click({ clickCount: 1 });
+            console.log('کلیک اول روی دکمه Post انجام شد.');
+            await delay(1000);
+            await postButton.click({ clickCount: 2 });
+            console.log('کلیک دوم روی دکمه Post انجام شد.');
+        } catch (e) {
+            console.error(`خطا در کلیک روی دکمه Post: ${e.message}`);
+        }
+        
+        console.log('منتظر 5 ثانیه برای اطمینان از ارسال نهایی...');
         await delay(5000);
         console.log('--- آپلود در تیک‌تاک به پایان رسید ---');
 
@@ -218,4 +228,3 @@ const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`سرور با موفقیت بر روی پورت ${PORT} اجرا شد.`);
 });
-
