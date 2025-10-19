@@ -133,7 +133,7 @@ async function postToTiktok({ page, videoPath, caption, cookies }) {
         } catch (e) { console.log("پاپ‌آپ تیک‌تاک یافت نشد."); }
         
         console.log('منتظر آپلود ویدیو (70 ثانیه)...');
-        await delay(70000);
+        await delay(90000);
 
         const captionXPath = "//*[@id=\"root\"]/div/div/div[2]/div[2]/div/div/div/div[4]/div[1]/div[2]/div[1]/div[2]/div[1]";
         const [captionBox] = await page.$$(`xpath/${captionXPath}`);
@@ -228,3 +228,4 @@ const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`سرور با موفقیت بر روی پورت ${PORT} اجرا شد.`);
 });
+
